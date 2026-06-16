@@ -29,7 +29,7 @@ _ensure("matplotlib", "matplotlib")
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import Polygon
+from matplotlib.patches import Polygon, Circle, Wedge, Arc
 from matplotlib import font_manager
 
 for f in ["/System/Library/Fonts/PingFang.ttc", "/System/Library/Fonts/STHeiti Medium.ttc",
@@ -40,6 +40,7 @@ for f in ["/System/Library/Fonts/PingFang.ttc", "/System/Library/Fonts/STHeiti M
 plt.rcParams["font.sans-serif"] = ["PingFang SC", "Heiti SC", "Noto Sans CJK SC",
                                    "WenQuanYi Zen Hei", "Arial Unicode MS", "DejaVu Sans"]
 plt.rcParams["axes.unicode_minus"] = False
+plt.rcParams["hatch.linewidth"] = 1.2
 
 OFF = {"left": (-1, 0), "right": (1, 0), "up": (0, 1), "down": (0, -1),
        "ul": (-1, 1), "ur": (1, 1), "dl": (-1, -1), "dr": (1, -1)}
@@ -93,6 +94,42 @@ def main():
         if fdef.get("label"):
             ax.text(xs[int(len(xs) * 0.82)], ys[int(len(ys) * 0.82)], fdef["label"],
                     fontsize=11, color=fdef.get("color", "#C0633D"))
+
+    # ---------- 圆 / 弧 / 扇形 / 角标记 ----------
+    def rc(c):   # 解析中心:点名或坐标
+        return tuple(P[c]) if isinstance(c, str) else tuple(c)
+    for cir in spec.get("circles", []):
+        c = rc(cir["c"]); r = cir["r"]
+        ax.add_patch(Circle(c, r, fill=False, edgecolor="#111", lw=2.0, zorder=2,
+                            linestyle="--" if cir.get("dash") else "-"))
+        allx += [c[0] - r, c[0] + r]; ally += [c[1] - r, c[1] + r]
+        if cir.get("center_dot", True):
+            ax.plot([c[0]], [c[1]], "o", color="#111", ms=3.5, zorder=5)
+    for arc in spec.get("arcs", []):
+        c = rc(arc["c"]); r = arc["r"]
+        ax.add_patch(Arc(c, 2 * r, 2 * r, theta1=arc["a0"], theta2=arc["a1"],
+                         color="#111", lw=2.0, zorder=2))
+        allx += [c[0] - r, c[0] + r]; ally += [c[1] - r, c[1] + r]
+    for sec in spec.get("sectors", []):
+        c = rc(sec["c"]); r = sec["r"]
+        if sec.get("shade"):
+            ax.add_patch(Wedge(c, r, sec["a0"], sec["a1"], facecolor="none",
+                               hatch="///", edgecolor="#111", lw=0.0, zorder=1))
+        ax.add_patch(Wedge(c, r, sec["a0"], sec["a1"], facecolor="none",
+                           edgecolor="#111", lw=2.0, zorder=2))
+        allx += [c[0] - r, c[0] + r]; ally += [c[1] - r, c[1] + r]
+    for an in spec.get("angles", []):
+        V = rc(an["v"])
+        a1 = math.degrees(math.atan2(rc(an["p1"])[1] - V[1], rc(an["p1"])[0] - V[0]))
+        a2 = math.degrees(math.atan2(rc(an["p2"])[1] - V[1], rc(an["p2"])[0] - V[0]))
+        rr = an.get("r", 0.5)
+        lo, hi = min(a1, a2), max(a1, a2)
+        if hi - lo > 180: lo, hi = hi, lo + 360   # 取较小的那个夹角
+        ax.add_patch(Arc(V, 2 * rr, 2 * rr, theta1=lo, theta2=hi, color="#111", lw=1.3, zorder=4))
+        if an.get("text"):
+            mid = math.radians((lo + hi) / 2)
+            ax.text(V[0] + math.cos(mid) * rr * 1.6, V[1] + math.sin(mid) * rr * 1.6,
+                    an["text"], fontsize=11, ha="center", va="center", zorder=6)
 
     # ---------- 多边形(浅描边/可填充) ----------
     if spec.get("polygon"):
